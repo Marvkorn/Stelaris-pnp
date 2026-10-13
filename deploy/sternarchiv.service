@@ -1,0 +1,21 @@
+[Unit]
+Description=Sternarchiv PnP
+After=network.target
+
+[Service]
+Type=simple
+User=sternarchiv
+Group=sternarchiv
+WorkingDirectory=/opt/sternarchiv
+EnvironmentFile=/etc/sternarchiv.env
+ExecStart=/usr/bin/node /opt/sternarchiv/server.mjs
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sternarchiv
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

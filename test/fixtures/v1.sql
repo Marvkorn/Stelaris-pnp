@@ -1,0 +1,11 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE meta(id INTEGER PRIMARY KEY,revision INTEGER NOT NULL,round INTEGER NOT NULL);
+INSERT INTO meta VALUES(1,0,0);
+CREATE TABLE empires(id TEXT PRIMARY KEY,name TEXT NOT NULL,species TEXT NOT NULL,description TEXT NOT NULL,visibility TEXT NOT NULL CHECK(visibility IN ('public','empire','secret')),economy_visibility TEXT NOT NULL CHECK(economy_visibility IN ('public','empire','secret')),research_visibility TEXT NOT NULL CHECK(research_visibility IN ('public','empire','secret')),image TEXT,research_power INTEGER NOT NULL DEFAULT 0,project_name TEXT NOT NULL DEFAULT '',project_description TEXT NOT NULL DEFAULT '',progress INTEGER NOT NULL DEFAULT 0,required INTEGER NOT NULL DEFAULT 100);
+CREATE TABLE users(id TEXT PRIMARY KEY,username TEXT NOT NULL UNIQUE COLLATE NOCASE,password TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('gm','player')),empire_id TEXT REFERENCES empires(id) ON DELETE SET NULL);
+CREATE TABLE resources(empire_id TEXT NOT NULL REFERENCES empires(id) ON DELETE CASCADE,kind TEXT NOT NULL,stock INTEGER NOT NULL DEFAULT 0,income INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(empire_id,kind));
+CREATE TABLE records(id TEXT PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('planet','fleet','report')),empire_id TEXT REFERENCES empires(id) ON DELETE SET NULL,name TEXT NOT NULL,description TEXT NOT NULL,visibility TEXT NOT NULL CHECK(visibility IN ('public','empire','secret')),image TEXT,details TEXT NOT NULL);
+CREATE TABLE sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,csrf TEXT NOT NULL,expires INTEGER NOT NULL);
+CREATE TABLE audit(id INTEGER PRIMARY KEY,at TEXT NOT NULL,actor TEXT NOT NULL,empire_id TEXT,action TEXT NOT NULL,details TEXT NOT NULL,reason TEXT NOT NULL);
+CREATE TABLE previews(token TEXT PRIMARY KEY,revision INTEGER NOT NULL,round INTEGER NOT NULL,snapshot TEXT NOT NULL,expires INTEGER NOT NULL,committed INTEGER NOT NULL DEFAULT 0);
+PRAGMA user_version=1;

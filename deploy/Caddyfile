@@ -1,0 +1,10 @@
+{$DOMAIN} {
+    request_body {
+        max_size 36MB
+    }
+    reverse_proxy app:3000 {
+        # Overwrite client-supplied forwarding headers. The app trusts only this proxy IP.
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

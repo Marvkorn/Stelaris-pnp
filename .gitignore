@@ -1,0 +1,13 @@
+data/
+backups/
+.idea/
+node_modules/
+*.log
+.DS_Store
+.qa/
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key

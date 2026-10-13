@@ -1,0 +1,49 @@
+name: sternarchiv
+services:
+  app:
+    build: .
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      PUBLIC_BASE_URL: https://${DOMAIN:?Set DOMAIN in .env}
+      SECURE_COOKIE: '1'
+      TRUSTED_PROXIES: 172.30.87.2
+      DATA_DIR: /app/data
+      BACKUP_DIR: /app/backups
+    volumes:
+      - campaign:/app/data
+      - backups:/app/backups
+    networks:
+      - web
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      web:
+        ipv4_address: 172.30.87.2
+networks:
+  web:
+    ipam:
+      config:
+        - subnet: 172.30.87.0/24
+volumes:
+  campaign:
+  backups:
+  caddy_data:
+  caddy_config:

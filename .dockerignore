@@ -1,0 +1,10 @@
+.git
+.idea
+.qa
+.env
+.env.*
+data
+backups
+node_modules
+*.log
+test
