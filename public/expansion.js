@@ -1,0 +1,123 @@
+const discoveryCategories = ['Spezielle Ressourcen entdeckt','Rassen entdeckt','Planeten entdeckt','Erforschte Dinge','Sonstiges'];
+const buildingStatuses = { construction:'Im Bau', active:'Aktiv', inactive:'Stillgelegt', demolished:'Abgerissen / Abgebrochen' };
+const proposalStatuses = { draft:'Entwurf', submitted:'Eingereicht', revision:'Zur Überarbeitung', rejected:'Abgelehnt', approved:'Genehmigt' };
+const selectField = (name,label,options,value='') => `<label>${label}<select name="${name}">${options.map(([k,v])=>`<option value="${e(k)}" ${k===value?'selected':''}>${e(v)}</option>`).join('')}</select></label>`;
+const amountText = values => Object.entries(values).filter(([,v])=>v).map(([k,v])=>`${num(v)} ${e(k==='research'?'Forschung':resourceNames[k]||k)}`).join(', ') || 'Keine';
+const expansionWrite = (path,data,method='POST') => api(path,method,{...data,revision:state.revision});
+function expansionPage() {
+  if(page==='types') return heading('Ressourcentypen','Archivieren erhält Vorräte, Buchungen und bestehende Gebäudeeffekte.',button('x-type','+ Ressourcentyp','','primary')) + `<div class="grid">${state.resourceTypes.map(r=>`<article class="panel"><h3>${e(r.symbol)} ${e(r.name)}</h3><p class="description">${e(r.description)}</p><p>${r.archived?'Archiviert':'Aktiv'}</p>${button('x-type','Bearbeiten / Archivieren',r.id)} ${!r.archived?button('x-assign','Reich zuweisen',r.id):''}</article>`).join('')}</div>`;
+  if(page==='buildings') return buildingsPage();
+  if(page==='laws') return lawsPage();
+  if(page==='maps') return heading('Karte','Freigegebene Teilkarten. Zum Zoomen und Verschieben eine Karte öffnen.',gm()?button('x-map','+ Karte hochladen','','primary'):'') + archiveCards(state.archive.filter(a=>a.kind==='map'));
+  return heading('Forschung & Entdeckungen','Das freigegebene Wissensarchiv deines Reiches.',gm()?button('x-discovery','+ Entdeckung','','primary'):'') + discoveryCategories.map(category=>`<section><div class="section-title"><h2>${category}</h2></div>${category==='Erforschte Dinge'?researchArchive():''}${archiveCards(state.archive.filter(a=>a.kind==='discovery'&&a.category===category))}</section>`).join('');
+}
+function researchArchive() {
+  return state.empires.filter(x=>x.research&&(gm()||x.id===session.user.empire_id)).map(x=>`<section class="panel"><h3>${e(x.name)} · Forschungsprojekt</h3><p>${e(x.research.name||'Kein aktives Projekt')}</p><p class="description">${e(x.research.description)}</p><p>${num(x.research.progress)} / ${num(x.research.required)} Punkte · ${num(x.research.power)} / Runde (Basis ${num(x.research.base)}, Gebäude +${num(x.research.production)} −${num(x.research.upkeep)})</p>${gm()?button('research','Forschung bearbeiten',x.id):''}</section>`).join('');
+}
+function archiveCards(entries) {
+  return entries.length?`<div class="grid">${entries.map(x=>`<article class="panel"><h3>${e(x.title)}</h3><p class="small muted">Runde ${x.round} · ${visibilityNames[x.visibility]}</p><p class="description">${e(x.description)}</p>${archiveLink(x)}${x.kind==='map'?button('x-view-map','Karte öffnen',x.id,'primary'):eventImages({...x,name:x.title})}${gm()?button(x.kind==='map'?'x-map':'x-discovery','Bearbeiten',x.id,'subtle'):''}</article>`).join('')}</div>`:'<p class="muted">Keine freigegebenen Einträge.</p>';
+}
+function archiveLink(x) {
+  if(!x.link_id) return '';
+  if(x.link_kind==='planet') { const p=state.records.find(r=>r.id===x.link_id);return p?button('open-record',`Planet: ${e(p.name)}`,p.id,'subtle'):''; }
+  if(x.link_kind==='resource') {const r=state.resourceTypes.find(r=>r.id===x.link_id);return r?`<p>Ressource: ${e(r.name)} · ${e(r.description)}</p>`:'';}
+  const empire=findEmpire(x.link_id);return empire?`<p>${x.link_kind==='species'?'Rasse: '+e(empire.species):'Forschung: '+e(empire.research?.name||'Kein aktives Projekt')} (${e(empire.name)})</p>`:'';
+}
+function expansionResourcesForm(id) {
+  const x=findEmpire(id), revision=state.revision;
+  formModal(`Ressourcen · ${x.name}`,`${selectField('mode','Vorratsbuchung',[['set','Vorrat direkt setzen'],['delta','Vorrat hinzufügen / abziehen (+ / −)']])}<p class="help">Basiseinkommen ist der manuelle Anteil. Aktive Gebäude werden separat addiert. Diese Buchung schaltet keine Runde weiter.</p><div class="table-wrap"><table><thead><tr><th>Ressource</th><th>Vorrat / Änderung</th><th>Manuelle Basis / Runde</th><th>Vorschau: bisher → Änderung → neu</th></tr></thead><tbody>${x.resources.map(r=>`<tr><td>${e(resourceNames[r.kind])}<p class="small">Gebäude +${num(r.production)} −${num(r.upkeep)}</p></td><td>${input(r.kind+'_stock','Vorrat',r.stock,'number','required min="-1000000000" max="1000000000" step="1" data-resource-stock')}</td><td>${input(r.kind+'_income','Basiseinkommen',r.base,'number','required min="-1000000000" max="1000000000" step="1"')}</td><td data-resource-preview="${r.kind}"></td></tr>`).join('')}</tbody></table></div>${input('reason','Begründung (optional)','','text','maxlength="1000"')}`,data=>api(`/empires/${id}/resources`,'PUT',{revision,mode:data.mode,reason:data.reason,resources:Object.fromEntries(x.resources.map(r=>[r.kind,{stock:Number(data[r.kind+'_stock']),income:Number(data[r.kind+'_income'])}]))}));
+  const form=$('#edit-form'),update=()=>x.resources.forEach(r=>{const value=Number(form.elements[r.kind+'_stock'].value),after=form.elements.mode.value==='delta'?r.stock+value:value;form.querySelector(`[data-resource-preview="${r.kind}"]`).textContent=`${num(r.stock)} → ${signed(after-r.stock)} → ${num(after)}`;});
+  form.elements.mode.onchange=()=>{x.resources.forEach(r=>form.elements[r.kind+'_stock'].value=form.elements.mode.value==='delta'?0:r.stock);update();}; form.addEventListener('input',update);update();
+}
+function resourceTypeForm(id) {
+  const r=state.resourceTypes.find(x=>x.id===id)||{name:'',description:'',symbol:'',archived:0};
+  formModal('Ressourcentyp',`${input('name','Name',r.name,'text','required maxlength="120"')}${textarea('description','Beschreibung',r.description)}${input('symbol','Symbol (optional)',r.symbol,'text','maxlength="12"')}${id?`<label class="check"><input name="archived" type="checkbox" ${r.archived?'checked':''}>Ressourcentyp archivieren</label><p class="help">Kein Vorratsabzug: Alle vorhandenen Vorräte, Einkommen und historischen Buchungen bleiben erhalten. Archivierte Typen können keinen weiteren Reichen manuell zugewiesen werden.</p>`:''}`,(data,form)=>expansionWrite(id?`/resource-types/${id}`:'/resource-types',{...data,archived:!!form.elements.archived?.checked},id?'PUT':'POST'));
+}
+function buildingsPage() {
+  return heading('Gebäude & Bauaufträge','Vorlagenänderungen gelten nur für neu angelegte Gebäude.',button('x-template','+ Vorlage','','primary')+button('x-building','+ Gebäude auf Planet'))+`<h2>Gebäudekatalog</h2><p class="help">Mögliche Vorlagen: Kraftwerk, Mine, Landwirtschaft, Legierungswerk, Forschungslabor. Lege eure eigenen Werte fest; es wird keine Spielbalance vorgegeben.</p><div class="grid">${state.templates.map(t=>`<article class="panel">${t.image?`<img class="template-image" src="/api/template-images/${t.id}?v=${state.revision}" alt="${e(t.name)}">`:''}<h3>${e(t.name)}</h3><p class="description">${e(t.description)}</p><p>Produktion: ${amountText(t.production)}</p><p>Unterhalt: ${amountText(t.upkeep)}</p><p>Standardbauzeit: ${t.duration} Runden</p>${button('x-template','Vorlage bearbeiten',t.id)}</article>`).join('')}</div><h2>Gebäude auf Planeten</h2>${state.records.filter(r=>r.kind==='planet').map(p=>planetBuildings(p)).join('')}`;
+}
+function planetBuildings(p) {
+  return `<section class="panel"><h3>${e(p.name)} · ${e(findEmpire(p.empire_id)?.name||'Ohne Besitzer')}</h3>${button('x-building','+ Gebäude',p.id)}${state.buildings.filter(b=>b.planet_id===p.id).map(b=>`<article class="building-row"><strong>${e(b.name)}</strong> <span class="badge">${buildingStatuses[b.status]}</span><p>Produktion: ${amountText(b.production)} · Unterhalt: ${amountText(b.upkeep)}</p><p class="small">Baubeginn Runde ${b.start_round} · ${b.status==='construction'?`Fertig in Runde ${b.finish_round} (${Math.max(0,b.finish_round-state.round)} Runden verbleibend); erste Auszahlung beim Wechsel zu Runde ${b.finish_round+1}`:`Fertigstellungsrunde ${b.finish_round}`} </p>${b.status!=='demolished'?button('x-building-edit','Bauzeit / Status',b.id):''}</article>`).join('')||'<p>Noch keine Gebäude.</p>'}</section>`;
+}
+function amountEditor(t={}) {
+  const types=[...state.resourceTypes.map(r=>[r.id,r.name]),['research','Forschung (Projektpunkte)']];
+  return `<div class="table-wrap"><table><thead><tr><th>Ressource</th><th>Produktion / Runde</th><th>Unterhalt / Runde</th></tr></thead><tbody>${types.map(([id,name])=>`<tr><td>${e(name)}</td><td>${input('prod_'+id,'Produktion',t.production?.[id]??0,'number','required min="0" max="1000000000" step="1"')}</td><td>${input('cost_'+id,'Unterhalt',t.upkeep?.[id]??0,'number','required min="0" max="1000000000" step="1"')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+async function fileBase64(file) {
+  if(!file||file.size>5*1024*1024)throw new Error('Bitte PNG, JPEG oder WebP mit höchstens 5 MB auswählen.');
+  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(new Error('Bild konnte nicht gelesen werden.'));reader.readAsDataURL(file);});
+}
+function templateForm(id) {
+  const t=state.templates.find(x=>x.id===id)||{};
+  formModal('Gebäudevorlage',`${input('name','Name',t.name,'text','required maxlength="120"')}${textarea('description','Beschreibung',t.description)}${input('duration','Standard-Bauzeit in Runden',t.duration??0,'number','required min="0" max="1000000000" step="1"')}${amountEditor(t)}<p class="help">Forschung wird als Projektleistung behandelt, nicht als Ressourcenvorrat. Gesamtleistung unter null wird auf null begrenzt. Einfluss bleibt eine bestehende Ressource.</p><label>Optionales Bild (max. 5 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp"></label>${t.image?'<label class="check"><input name="remove_image" type="checkbox">Vorlagenbild entfernen</label>':''}<p class="help">Bestehende Gebäude behalten ihre gespeicherten Werte.</p>`,async(data,form)=>{
+    const production={},upkeep={};for(const r of [...state.resourceTypes.map(r=>r.id),'research']){if(Number(data['prod_'+r]))production[r]=Number(data['prod_'+r]);if(Number(data['cost_'+r]))upkeep[r]=Number(data['cost_'+r]);}
+    return expansionWrite(id?`/templates/${id}`:'/templates',{name:data.name,description:data.description,duration:Number(data.duration),production,upkeep,...(form.elements.image.files[0]?{image:await fileBase64(form.elements.image.files[0])}:form.elements.remove_image?.checked?{image:null}:{})},id?'PUT':'POST');
+  });
+}
+function buildingForm(planetId) {
+  if(!state.templates.length)throw new Error('Zuerst eine Gebäudevorlage anlegen.');
+  if(!state.records.some(r=>r.kind==='planet'))throw new Error('Zuerst einen Planeten anlegen.');
+  formModal('Gebäude hinzufügen',`${selectField('planet_id','Planet',state.records.filter(r=>r.kind==='planet').map(r=>[r.id,r.name]),planetId)}${selectField('template_id','Vorlage',state.templates.map(t=>[t.id,t.name]))}${input('duration','Individuelle Bauzeit in Spielrunden',state.templates[0].duration,'number','required min="0" max="1000000000" step="1"')}<p id="build-timing" class="notice"></p><p class="help">Keine automatischen Baukosten oder Rückerstattungen. Erträge und Betriebsunterhalt beginnen erst im aktiven Zustand.</p>`,data=>expansionWrite('/buildings',{...data,duration:Number(data.duration)}));
+  const form=$('#edit-form'),update=()=>{const d=Number(form.elements.duration.value);$('#build-timing').textContent=`Beginn: Runde ${state.round}. ${d===0?'Sofort aktiv.':'Fertig in Runde '+(state.round+d)+'.'} Erste Auszahlung beim Wechsel zu Runde ${state.round+d+1}.`;};
+  form.elements.template_id.onchange=()=>{form.elements.duration.value=state.templates.find(t=>t.id===form.elements.template_id.value).duration;update();};form.elements.duration.oninput=update;update();
+}
+function buildingEdit(id) {
+  const b=state.buildings.find(x=>x.id===id);
+  if(b.status==='construction') {
+    formModal(`Bauauftrag · ${b.name}`,`${selectField('operation','Bauauftrag',[['time','Verbleibende Bauzeit ändern'],['finish','Sofort fertigstellen'],['cancel','Bauauftrag abbrechen']])}${input('remaining','Verbleibende Runden',Math.max(0,b.finish_round-state.round),'number','required min="0" max="1000000000" step="1"')}<p id="edit-timing" class="help"></p>`,data=>expansionWrite(`/buildings/${id}`,data.operation==='cancel'?{status:'demolished'}:{remaining:data.operation==='finish'?0:Number(data.remaining)},'PUT'));
+    const form=$('#edit-form'),update=()=>{const d=form.elements.operation.value==='finish'?0:Number(form.elements.remaining.value);$('#edit-timing').textContent=form.elements.operation.value==='cancel'?'Abbruch ohne automatische Rückerstattung.':`Fertig in Runde ${state.round+d}; erste Auszahlung beim Wechsel zu Runde ${state.round+d+1}.`;};form.oninput=update;update();
+  } else formModal(`Gebäude · ${b.name}`,selectField('status','Betriebszustand',[['active','Aktiv'],['inactive','Stillgelegt'],['demolished','Abgerissen (dauerhaft)']],b.status)+'<p class="help">Ändert das künftige Einkommen sofort. Bereits verbuchte Vorräte bleiben unverändert.</p>',data=>expansionWrite(`/buildings/${id}`,data,'PUT'));
+}
+function roundBuildingSummary(p) {
+  return `<h3>Fertigstellungen nach der Abrechnung</h3>${p.completing.length?`<ul>${p.completing.map(b=>`<li>${e(b.name)} auf ${e(b.planet_name)} · aktiv ab Runde ${p.round}, erste Auszahlung beim Wechsel zu Runde ${p.round+1}</li>`).join('')}</ul>`:'<p>Keine Gebäude werden fertig.</p>'}<h3>Einkommen der neuen Runde ${p.round}</h3>${p.changes.map(x=>`<h4>${e(x.name)}</h4><p>${x.nextIncome.resources.map(r=>`${e(resourceNames[r.kind])}: Basis ${signed(r.base)} + Produktion ${num(r.production)} − Unterhalt ${num(r.upkeep)} = ${signed(r.income)}`).join('<br>')}<br>Forschung: ${num(x.nextIncome.research.power)} / Runde</p>`).join('')}`;
+}
+function archiveForm(kind,id) {
+  const x=state.archive.find(x=>x.id===id)||{kind,title:'',description:'',category:discoveryCategories[0],round:state.round,visibility:'secret',visibility_realms:[],images:[]};
+  const links=[['','Keine Verknüpfung'],...state.resourceTypes.map(r=>['resource:'+r.id,'Ressource: '+r.name]),...state.records.filter(r=>r.kind==='planet').map(r=>['planet:'+r.id,'Planet: '+r.name]),...state.empires.map(r=>['species:'+r.id,'Rasse: '+r.species+' ('+r.name+')']),...state.empires.filter(r=>r.research?.name).map(r=>['technology:'+r.id,'Forschungsprojekt: '+r.research.name+' ('+r.name+')'])];
+  formModal(kind==='map'?'Karte & Freigabe':'Entdeckung & Freigabe',`${input('title','Titel',x.title,'text','required maxlength="200"')}${textarea('description','Beschreibung',x.description)}${kind==='discovery'?selectField('category','Kategorie',discoveryCategories.map(c=>[c,c]),x.category)+selectField('link','Verknüpfung zu vorhandenem Eintrag',links,x.link_id?x.link_kind+':'+x.link_id:''):''}${input('round','Entdeckungsrunde',x.round,'number','required min="0" max="1000000000" step="1"')}${visibilitySelect('visibility','Sichtbarkeit',x.visibility,x.visibility_realms)}<p class="help">Eine Freigabe dieses Eintrags schaltet keine geheimen Felder des verknüpften Eintrags frei. Planetendaten bleiben beim vorhandenen Planeten.</p>${x.images.map((image,i)=>`<label class="check"><input type="checkbox" name="keep_image" value="${image.id}" checked>Bild ${i+1} behalten</label>`).join('')}<label>${kind==='map'?'Kartenbild':'Bilder hinzufügen'} (PNG, JPEG, WebP; je max. 5 MB, 24 Megapixel)<input name="files" type="file" ${kind==='discovery'?'multiple':''} accept="image/png,image/jpeg,image/webp"></label><p class="help">${kind==='map'?'Genau ein Kartenbild. Zum Ersetzen das bisherige Bild abwählen.':'Bis zu fünf Bilder.'}</p>`,async(data,form)=>{
+    const [link_kind,link_id]=(data.link||'').split(':');
+    const images=new FormData(form).getAll('keep_image').map(id=>({id}));for(const file of form.elements.files.files)images.push({data:await fileBase64(file)});
+    return expansionWrite(id?`/archive/${id}`:'/archive',{kind,title:data.title,description:data.description,category:data.category,round:Number(data.round),visibility:data.visibility,...visibilityData(form),link_kind:link_kind||null,link_id:link_id||null,images},id?'PUT':'POST');
+  });
+}
+function viewMap(id) {
+  const map=state.archive.find(x=>x.id===id&&x.kind==='map');if(!map)return;
+  openModal(map.title,`<div class="map-controls"><label>Zoom <input id="map-zoom" type="range" min="10" max="400" step="10" value="100"></label><span id="map-scale">100 %</span><p class="help">Mit gedrückter Maustaste oder einem Finger verschieben. Alternativ die Scrollleisten verwenden.</p></div><div class="map-viewport" tabindex="0" aria-label="Verschiebbare Karte"><img id="map-image" src="${e(map.images[0].url)}" alt="${e(map.title)}" draggable="false"></div>`);
+  const viewport=$('.map-viewport'),img=$('#map-image');let baseWidth=0,drag;
+  const resize=()=>{if(baseWidth)img.width=Math.round(baseWidth*Number($('#map-zoom').value)/100);$('#map-scale').textContent=$('#map-zoom').value+' %';};
+  img.onload=()=>{baseWidth=Math.min(img.naturalWidth,viewport.clientWidth);resize();};$('#map-zoom').oninput=resize;
+  viewport.onpointerdown=event=>{drag={x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(event.pointerId);};
+  viewport.onpointermove=event=>{if(drag){viewport.scrollLeft=drag.left+drag.x-event.clientX;viewport.scrollTop=drag.top+drag.y-event.clientY;}};viewport.onpointerup=viewport.onpointercancel=()=>{drag=null;};
+}
+function lawbookSection(empireId) {
+  const book=state.lawbooks.find(b=>b.empire_id===empireId);if(!book)return '';
+  const constitution=book.laws.find(l=>l.kind==='constitution'),own=gm()||session.user.empire_id===empireId;
+  return `<section class="lawbook"><div class="section-title"><h2>Gesetzbuch · ${e(book.name)}</h2>${gm()?button('x-book','Veröffentlichung',empireId):''}</div>${own?button('x-propose-law','+ Gesetz vorschlagen',empireId)+button('x-propose-constitution',constitution?'Verfassungsänderung einreichen':'Verfassung vorschlagen',empireId):''}<p class="help">${book.published?'Für Reiche veröffentlicht, die dieses Reich kennen.':'Nicht für andere Reiche veröffentlicht.'}</p>${constitution?lawCard(constitution,own):'<article class="panel"><h3>Verfassung</h3><p>Noch keine Verfassung verabschiedet</p></article>'}${book.laws.filter(l=>l.kind==='law').map(l=>lawCard(l,own)).join('')||'<p>Noch keine genehmigten Gesetze.</p>'}</section>`;
+}
+function lawCard(law,own) {
+  return `<article class="panel"><h3>${law.kind==='constitution'?'Verfassung':`Gesetz Nr. ${law.number}`} · ${e(law.title)}</h3><p class="description">${e(law.content)}</p><p class="small muted">${law.status==='valid'?'Gültig':'Aufgehoben'} · Runde ${law.round} · ${e(new Date(law.at).toLocaleString('de-AT'))} · Version ${law.version}</p>${own&&law.status==='valid'?button('x-amend','Änderung vorschlagen',law.id):''}${gm()&&law.kind==='law'&&law.status==='valid'?button('x-repeal','Aufheben',law.id,'subtle'):''}<details><summary>Veröffentlichte Fassungen</summary>${law.versions.map(v=>`<h4>Version ${v.version} · Runde ${v.round} · ${v.status==='valid'?'Gültig':'Aufgehoben'}</h4><strong>${e(v.title)}</strong><p class="description">${e(v.content)}</p>`).join('')}</details></article>`;
+}
+function lawsPage() {
+  return heading('Gesetzbücher',gm()?'Vorschläge prüfen, Verfassungen verabschieden und Reichsentdeckungen verwalten.':'Dein Gesetzbuch und veröffentlichte Gesetzbücher bekannter Reiche.',gm()?button('x-contact','Reichsentdeckung verwalten'):'')+state.lawNotices.map(n=>`<div class="notice">${e(n.message)} ${button('x-notice','Gelesen',n.id)}</div>`).join('')+`<h2>${gm()?'Eingang':'Meine Vorschläge'}</h2><div class="grid">${state.proposals.map(p=>`<article class="panel"><h3>${e(p.title)}</h3><p>${e(p.empire_name)} · ${e(p.username)} · ${p.kind==='constitution'?'Verfassung':p.law_id?'Gesetzesänderung':'Neues Gesetz'} · ${proposalStatuses[p.status]}</p><p class="small">${e(new Date(p.at).toLocaleString('de-AT'))}</p><p class="description">${e(p.content)}</p>${p.comment?`<p class="notice">Kommentar der Spielleitung: ${e(p.comment)}</p>`:''}${p.user_id===session.user.id&&['draft','revision'].includes(p.status)?button('x-proposal-edit','Bearbeiten / Einreichen',p.id):''}${gm()&&p.status==='submitted'?button('x-decide','Prüfen / Entscheiden',p.id,'primary'):''}</article>`).join('')||'<p>Keine Vorschläge.</p>'}</div>${state.lawbooks.map(b=>lawbookSection(b.empire_id)).join('')}${gm()?`<h2>Gerichtete Reichsentdeckungen</h2>${state.contacts.map(c=>`<p>${e(findEmpire(c.source_id)?.name)} kennt ${e(findEmpire(c.target_id)?.name)}</p>`).join('')||'<p>Noch keine Reichsentdeckungen.</p>'}`:''}`;
+}
+function proposalForm(empireId,kind,lawId=null,proposalId=null) {
+  const p=state.proposals.find(p=>p.id===proposalId),law=state.lawbooks.flatMap(b=>b.laws).find(l=>l.id===lawId);
+  formModal('Vorschlag an die Spielleitung',`${input('title','Titel',p?.title??law?.title??'','text','required maxlength="200"')}${textarea('content','Vollständiger vorgeschlagener Text',p?.content??law?.content??'')}${selectField('status','Speichern als',[['draft','Entwurf (nur du und Spielleitung)'],['submitted','Zur Genehmigung einreichen']],'submitted')}<p class="help">Bis zur Genehmigung bleibt die veröffentlichte Fassung gültig. Vorschläge sehen nur du und die Spielleitung.</p>`,data=>api(proposalId?`/proposals/${proposalId}`:'/proposals',proposalId?'PUT':'POST',{...data,empire_id:empireId,kind,law_id:lawId,version:p?.version}));
+}
+async function expansionAction(action,id) {
+  if(action==='x-type')return resourceTypeForm(id);
+  if(action==='x-assign')return formModal('Ressource zuweisen',empireSelect('empire_id','Reich'),data=>expansionWrite('/resource-assignments',{kind:id,empire_id:data.empire_id}));
+  if(action==='x-template')return templateForm(id);
+  if(action==='x-building')return buildingForm(id);
+  if(action==='x-building-edit')return buildingEdit(id);
+  if(action==='x-map'||action==='x-discovery')return archiveForm(action==='x-map'?'map':'discovery',id);
+  if(action==='x-view-map')return viewMap(id);
+  if(action==='x-book'){const book=state.lawbooks.find(b=>b.empire_id===id);return formModal('Gesetzbuch veröffentlichen',`<label class="check"><input name="published" type="checkbox" ${book.published?'checked':''}>Für Reiche veröffentlichen, die dieses Reich kennen</label><p class="help">Für das eigene Reich bleibt das Gesetzbuch immer sichtbar. Private Wirtschaft, Flotten und Entwürfe erhalten keine Freigabe.</p>`,(_,form)=>expansionWrite('/lawbooks',{empire_id:id,published:form.elements.published.checked}));}
+  if(action==='x-contact')return formModal('Reich A kennt Reich B',`${empireSelect('source_id','Reich A (lernt kennen)')}${empireSelect('target_id','Reich B (wird entdeckt)')}${selectField('known','Beziehung',[['yes','A kennt B'],['no','A kennt B nicht mehr']])}<p class="help">Die Beziehung gilt nur in dieser Richtung und gibt keine privaten Reichsdaten frei.</p>`,data=>expansionWrite('/contacts',{...data,known:data.known==='yes'}));
+  if(action==='x-propose-law'||action==='x-propose-constitution')return proposalForm(id,action==='x-propose-law'?'law':'constitution');
+  if(action==='x-amend'){const law=state.lawbooks.flatMap(b=>b.laws).find(l=>l.id===id);return proposalForm(law.empire_id,law.kind,id);}
+  if(action==='x-proposal-edit'){const p=state.proposals.find(p=>p.id===id);return proposalForm(p.empire_id,p.kind,p.law_id,id);}
+  if(action==='x-decide'){const p=state.proposals.find(p=>p.id===id);return formModal('Vorschlag entscheiden',`<h3>${e(p.title)}</h3><p class="description">${e(p.content)}</p>${selectField('status','Entscheidung',[['approved','Genehmigen und veröffentlichen'],['revision','Zur Überarbeitung zurückgeben'],['rejected','Ablehnen']])}${textarea('comment','Interner Kommentar an den einreichenden Spieler')}`,data=>api(`/proposals/${id}/decision`,'POST',{...data,version:p.version}),'Entscheidung speichern');}
+  if(action==='x-repeal')return formModal('Gesetz aufheben','<p>Das Gesetz wird als aufgehoben markiert. Seine Nummer bleibt dauerhaft erhalten.</p>',()=>expansionWrite(`/laws/${id}/repeal`,{}),'Gesetz aufheben');
+  if(action==='x-notice'){await api(`/law-notices/${id}`,'POST',{});return refresh();}
+}

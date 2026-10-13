@@ -196,7 +196,7 @@ test('Migration erhält Version-1-Daten/Freigaben, Bilder, Passwörter und Eigen
   db.close();writeFileSync(join(root,'images','old.png'),Buffer.from(png,'base64'));
   const updated=openDatabase(root);
   try{
-    assert.equal(updated.prepare('PRAGMA user_version').get().user_version,2);
+    assert.equal(updated.prepare('PRAGMA user_version').get().user_version,3);
     const a=updated.prepare("SELECT * FROM empires WHERE id='a'").get();assert.equal(a.visibility_realms,'["a"]');assert.equal(a.economy_visibility,'secret');assert.equal(a.progress,35);
     const owner={id:'pa',role:'player',empire_id:'a'},foreign={id:'pb',role:'player',empire_id:'b'};
     const planet=updated.prepare("SELECT * FROM records WHERE id='planet'").get();assert.equal(planet.empire_id,'a');assert.ok(canReadRecord(owner,planet));assert.ok(!canReadRecord(foreign,planet));
@@ -207,8 +207,8 @@ test('Migration erhält Version-1-Daten/Freigaben, Bilder, Passwörter und Eigen
     assert.equal(updated.prepare("SELECT password FROM users WHERE id='pa'").get().password,'player-password-hash');
     assert.equal(updated.prepare('SELECT stock FROM resources').get().stock,-12);assert.equal(updated.prepare('SELECT round FROM meta').get().round,7);
     assert.equal(updated.prepare('SELECT reason FROM audit').get().reason,'Grund');assert.equal(updated.prepare('SELECT count(*) AS n FROM sessions').get().n,0);
-    assert.equal(readdirSync(join(root,'migration-backups')).length,1);
+    assert.equal(readdirSync(join(root,'migration-backups')).length,2);
     assert.equal(updated.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
   }finally{updated.close();}
-  const again=openDatabase(root);again.close();assert.equal(readdirSync(join(root,'migration-backups')).length,1);
+  const again=openDatabase(root);again.close();assert.equal(readdirSync(join(root,'migration-backups')).length,2);
 });

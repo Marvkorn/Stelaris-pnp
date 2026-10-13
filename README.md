@@ -1,8 +1,42 @@
-# Sternarchiv · Version 2
+# Sternarchiv · Version 3
+
+## Erweiterungen in Version 3
+
+**Ressourcen:** Im Reich unter **Vorräte & Einkommen** jederzeit Vorräte setzen oder positive/negative Änderungen buchen. Die Vorschau zeigt den bisherigen Wert, die Änderung und den neuen Wert; eine optionale Begründung wird zusammen mit Zeitpunkt, Urheber und Reich protokolliert. Das manuelle Basiseinkommen steht getrennt von Gebäudeproduktion und Unterhalt. Unter **Ressourcentypen** zusätzliche Typen mit Beschreibung und Symbol anlegen und einzelnen Reichen zuweisen. **Archivieren** entfernt keine Vorräte oder Buchungen und stoppt keine bestehenden Gebäudeeffekte; es verhindert weitere manuelle Zuweisungen. Die fünf ursprünglichen Basisressourcen bleiben erhalten. Spieler können keine Ressourcen ändern.
+
+**Gebäude:** Unter **Gebäude** Vorlagen mit eigener Produktion, Unterhalt, Standardbauzeit und optionalem Bild anlegen. Kraftwerk, Mine, Landwirtschaft, Legierungswerk und Forschungslabor sind mögliche Namen, keine vorgegebene Spielbalance. Auf einem Planeten mehrere Gebäude derselben Vorlage hinzufügen, auch direkt aus dessen Detailansicht. Jede Instanz speichert eigene Werte: Eine spätere Vorlagenänderung verändert bestehende Gebäude nicht. Es gibt keine automatische nachträgliche Übernahme neuer Vorlagenwerte.
+
+**Bauzeiten:** Beim Anlegen eine nicht negative ganze Zahl von Spielrunden wählen. Das Formular zeigt Fertigstellungsrunde und erste Auszahlung. Unter **Bauzeit / Status** Bauaufträge abbrechen, verbleibende Runden ändern oder sofort fertigstellen. Fertige Gebäude aktivieren, stilllegen oder dauerhaft abreißen. Keine automatischen Baukosten oder Rückerstattungen. Planeten mit Gebäudehistorie können nicht gelöscht werden; sie können weiterhin bearbeitet oder verborgen werden.
+
+**Rundenabrechnung:** Zuerst werden manuelle Basis + bisher aktive Produktion − bisher aktiver Unterhalt verbucht. Danach steigt die Rundennummer, und fällige Gebäude werden aktiv. Ein in Runde 5 begonnener Bau mit zwei Runden Bauzeit ist in Runde 6 noch im Bau, wird beim Wechsel zu Runde 7 aktiv und zahlt beim Wechsel zu Runde 8 erstmals aus. Die Vorschau zeigt Buchungen, Fertigstellungen und das Einkommen der neuen Runde. Bestätigung und Fertigstellungen laufen in einer gemeinsamen Transaktion; wiederholte Bestätigung bucht nichts doppelt. Ressourcenbuchungen schalten keine Bauzeit weiter. Besitzerwechsel übertragen zukünftige Gebäudeeffekte an das neue Reich.
+
+Forschung bleibt Projektleistung statt Ressourcenvorrat: Forschungsgebäude ergänzen die manuelle Forschungsleistung, abgeschlossene Projekte erhalten weiterhin keine zusätzlichen Punkte. Gesamtleistung unter null wird auf null begrenzt. Einfluss bleibt als bestehende Ressource erhalten.
+
+**Forschung & Entdeckungen:** Fünf feste Bereiche: **Spezielle Ressourcen entdeckt**, **Rassen entdeckt**, **Planeten entdeckt**, **Erforschte Dinge**, **Sonstiges**. Die Spielleitung legt Einträge mit Titel, Text, Entdeckungsrunde, optional bis zu fünf Bildern und der bestehenden Sichtbarkeit an. Unter „Erforschte Dinge“ bleiben Forschungsprojekte samt Fortschritt eingebunden. Verknüpfungen referenzieren bestehende Ressourcen, Planeten, Reichsspezies und Forschungsprojekte; geheime verknüpfte Daten werden nicht mit ausgeliefert. Es gibt keinen zusätzlichen eigenständigen Rassen- oder Technologiekatalog. Ein Projektlink verweist auf das aktuelle Forschungsprojekt des Reichs; dauerhaft erforschtes Wissen als eigenen Entdeckungstext festhalten.
+
+**Gesetzbücher:** Im Reich und im Tab **Gesetzbücher** steht die Verfassung zuerst, anschließend die Gesetze in Nummernreihenfolge. Das eigene Gesetzbuch bleibt unabhängig von der Profilfreigabe zugänglich. Spieler reichen neue Gesetze oder Änderungen als Entwurf oder zur Genehmigung ein. Nur der Einreichende und die Spielleitung sehen Vorschläge. Die Spielleitung kann im Eingang genehmigen, ablehnen oder mit Kommentar zurückgeben. Entscheidungen erzeugen einen persönlichen Hinweis und einen Navigationszähler. Genehmigte Änderungen behalten ihre Nummer und erzeugen eine neue veröffentlichte Version. Bis dahin gilt die alte Fassung. Aufgehobene Gesetze behalten Nummer und Historie.
+
+Nummern werden erst bei Genehmigung und getrennt pro Reich vergeben. Ablehnungen verbrauchen keine Nummer. Gleichzeitige Genehmigungen werden serialisiert; erneutes Genehmigen veröffentlicht denselben Vorschlag nicht doppelt. Eine zwischenzeitlich geänderte Gesetzesfassung muss erneut geprüft werden.
+
+**Fremde Gesetzbücher:** Die Spielleitung aktiviert **Veröffentlichung** am Gesetzbuch und verwaltet unter **Reichsentdeckung verwalten** die gerichtete Beziehung „A kennt B“. A sieht das veröffentlichte Gesetzbuch von B; die Gegenrichtung gilt nicht automatisch. Ressourcen, Flotten, Geheimnisse und private Vorschläge werden dadurch nicht freigegeben.
+
+**Karte:** Mehrere benannte Kartenbilder hochladen und jeweils nur der Spielleitung, allen Spielern oder ausgewählten Reichen freigeben. **Karte öffnen** bietet Zoom, Verschieben per Maus/Finger und Scrollleisten. Für eine geheime Gesamtkarte „Nur Spielleitung“ wählen und für Spieler separate Teilkarten hochladen. Alle Bildzugriffe werden serverseitig geprüft; kein öffentlich erreichbarer Originaldateipfad. PNG/JPEG/WebP mit maximal 5 MB und 24 Megapixel pro Bild.
+
+**Nicht umgesetzt:** Interaktive Aufdeckung einzelner Gebiete derselben Gesamtkarte, serverseitig maskierte Ausschnitte und Spielermarker/-notizen. Die vollständige einfache Kartenansicht ist unabhängig davon nutzbar. Bereits berechtigt heruntergeladene Bilder lassen sich durch einen späteren Rechteentzug nicht zurückholen.
+
+## Von Version 2 auf Version 3 aktualisieren
+
+1. Alten Server beenden und **Datensicherung.cmd** ausführen.
+2. **Start.cmd** starten (Node.js 24; kein `npm install` nötig).
+3. **http://localhost:3000** mit **Strg+F5** neu laden.
+
+Beim Start wird die Datenbank automatisch auf Schema 3 erweitert. Zuvor entsteht unter `data/migration-backups` eine vollständige SQLite-Kopie `before-v3-….sqlite`. Konten, Sitzungen, Spielstände, Freigaben, Events, Bestätigungen, Aktionen und Antworten aus Version 2 bleiben bestehen. Keine erneute Einrichtung und kein Zurücksetzen. Die normale Sicherung enthält zusätzlich sämtliche Bilder. Ein direkter Umstieg von Version 1 führt die Migrationen 2 und 3 nacheinander aus; dabei gelten zusätzlich die nachfolgenden Hinweise zu Version 1.
+
+Prüfergebnisse und verbleibende Betriebsgrenzen stehen in **[PRUEFBERICHT.md](PRUEFBERICHT.md)**.
 
 Private deutschsprachige PnP-Webapp mit Node.js 24, SQLite und lokalen Bildern. Die bestehende Anwendung wurde erweitert, nicht ersetzt. Es gibt keinen verpflichtenden Cloudhost, keine kostenpflichtige API und keinen Build-Schritt. Tailscale ist optional.
 
-## Bestehende Installation aktualisieren
+## Ältere Installation von Version 1 aktualisieren
 
 1. Bisheriges Serverfenster mit **Strg+C** beenden. Nicht mit der alten Serverversion weiterarbeiten.
 2. **Datensicherung.cmd** doppelklicken. Die Sicherung verändert oder migriert die Quelldatenbank nicht.

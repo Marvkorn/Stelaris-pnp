@@ -10,6 +10,9 @@ import { recordView } from './lib/game.mjs';
 import { notifications, announcementDetail, confirmAnnouncement, reannounce, actionList, actionDetail, submitAction, updateAction, markActionRead } from './lib/communication.mjs';
 import { validateImage, storeImage } from './lib/images.mjs';
 import { configuration, loadEnvironment, clientAddress } from './lib/config.mjs';
+import { saveResourceType, assignResource, saveTemplate, saveBuilding } from './lib/economy.mjs';
+import { saveArchive } from './lib/archive.mjs';
+import { saveLawbook, saveContact, saveProposal, decideProposal, repealLaw, confirmLawNotice, lawState } from './lib/laws.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SESSION_MS = 12 * 60 * 60 * 1000;
@@ -39,7 +42,7 @@ export function createApp({ dataDir = resolve(ROOT, 'data'), secureCookie = fals
       const path = new URL(req.url, 'http://localhost').pathname;
       const method = req.method;
       // Only explicit static assets are public. Uploaded pictures always pass authorization.
-      const assets = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/communication.js':['communication.js','text/javascript'], '/style.css': ['style.css', 'text/css'] };
+      const assets = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/expansion.js':['expansion.js','text/javascript'], '/communication.js':['communication.js','text/javascript'], '/style.css': ['style.css', 'text/css'] };
       if (method === 'GET' && assets[path]) {
         res.writeHead(200, { 'Content-Type': `${assets[path][1]}; charset=utf-8` });
         return res.end(readFileSync(resolve(ROOT, 'public', assets[path][0])));
@@ -84,6 +87,30 @@ export function createApp({ dataDir = resolve(ROOT, 'data'), secureCookie = fals
       if (method !== 'GET' && req.headers['x-csrf-token'] !== session.csrf) throw new HttpError(403, 'Die Sitzung ist ungültig. Bitte neu anmelden.');
       if (method === 'POST' && path === '/api/logout') { db.prepare('DELETE FROM sessions WHERE token=?').run(session.token); res.setHeader('Set-Cookie', cookie('')); return send(res, 200, { ok: true }); }
       if (method === 'GET' && path === '/api/state') return send(res, 200, state(db, user));
+      if (method === 'GET' && path === '/api/law-state') return send(res,200,lawState(db,user));
+      const proposalMatch = path.match(/^\/api\/proposals(?:\/([a-zA-Z0-9-]+))?(\/decision)?$/);
+      if (proposalMatch && ['POST','PUT'].includes(method)) {
+        const body = await readBody(req);
+        return send(res,200,proposalMatch[2] ? decideProposal(db,user,proposalMatch[1],body) : saveProposal(db,user,body,proposalMatch[1]));
+      }
+      const noticeMatch = path.match(/^\/api\/law-notices\/([a-zA-Z0-9-]+)$/);
+      if (noticeMatch && method === 'POST') return send(res,200,confirmLawNotice(db,user,noticeMatch[1]));
+      const archiveImage = path.match(/^\/api\/archive-images\/([a-zA-Z0-9-]+)$/);
+      const templateImage = path.match(/^\/api\/template-images\/([a-zA-Z0-9-]+)$/);
+      if (method === 'GET' && (archiveImage || templateImage)) {
+        let filename;
+        if (archiveImage) {
+          const asset = db.prepare('SELECT i.filename,a.visibility,a.visibility_realms FROM archive_images i JOIN archive_entries a ON a.id=i.entry_id WHERE i.id=?').get(archiveImage[1]);
+          if (!asset || !canRead(user,asset.visibility,asset.visibility_realms)) throw new HttpError(404,'Bild nicht gefunden.');
+          filename = asset.filename;
+        } else {
+          if (user.role !== 'gm') throw new HttpError(404,'Bild nicht gefunden.');
+          filename = db.prepare('SELECT image FROM building_templates WHERE id=?').get(templateImage[1])?.image;
+        }
+        if (!filename || !existsSync(resolve(dataDir,'images',filename))) throw new HttpError(404,'Bild nicht gefunden.');
+        res.writeHead(200,{'Content-Type':{png:'image/png',jpg:'image/jpeg',webp:'image/webp'}[filename.split('.').at(-1)]});
+        return res.end(readFileSync(resolve(dataDir,'images',filename)));
+      }
       if (method === 'GET' && path === '/api/notifications') return send(res, 200, notifications(db,user));
       const announcementMatch=path.match(/^\/api\/announcements\/([a-zA-Z0-9-]+)(\/confirm)?$/);
       if(announcementMatch && method==='GET' && !announcementMatch[2]) return send(res,200,announcementDetail(db,user,announcementMatch[1]));
@@ -149,6 +176,16 @@ export function createApp({ dataDir = resolve(ROOT, 'data'), secureCookie = fals
       }
       if (user.role !== 'gm') throw new HttpError(403, 'Nur die Spielleitung darf Spieldaten ändern.');
       const body = method === 'GET' ? {} : await readBody(req);
+      const expansionMatch = path.match(/^\/api\/(resource-types|templates|buildings|archive)(?:\/([a-zA-Z0-9-]+))?$/);
+      if (expansionMatch && ['POST','PUT'].includes(method)) {
+        const handlers = { 'resource-types':saveResourceType, templates:saveTemplate, buildings:saveBuilding, archive:saveArchive };
+        return send(res,200,handlers[expansionMatch[1]](db,user,body,expansionMatch[2],dataDir));
+      }
+      if (method === 'POST' && path === '/api/resource-assignments') return send(res,200,assignResource(db,user,body));
+      if (method === 'POST' && path === '/api/lawbooks') return send(res,200,saveLawbook(db,user,body));
+      if (method === 'POST' && path === '/api/contacts') return send(res,200,saveContact(db,user,body));
+      const repealMatch = path.match(/^\/api\/laws\/([a-zA-Z0-9-]+)\/repeal$/);
+      if (method === 'POST' && repealMatch) return send(res,200,repealLaw(db,user,repealMatch[1],body));
       const announceMatch=path.match(/^\/api\/records\/([a-zA-Z0-9-]+)\/announce$/);
       if(method==='POST'&&announceMatch)return send(res,201,reannounce(db,user,announceMatch[1],body));
       if (method === 'POST' && path === '/api/round/preview') return send(res, 200, previewRound(db));
@@ -165,6 +202,7 @@ export function createApp({ dataDir = resolve(ROOT, 'data'), secureCookie = fals
       if (method === 'DELETE' && recordMatch) return send(res, 200, mutate(db, body.revision, () => {
         const old = db.prepare('SELECT * FROM records WHERE id=?').get(recordMatch[1]);
         if (!old) throw new HttpError(404, 'Eintrag nicht gefunden.');
+        if (db.prepare('SELECT id FROM buildings WHERE planet_id=? LIMIT 1').get(old.id)) throw new HttpError(409,'Planeten mit Gebäudehistorie bleiben erhalten. Ändere stattdessen ihre Sichtbarkeit.');
         db.prepare('DELETE FROM records WHERE id=?').run(old.id);
         audit(db, user, old.empire_id, 'Eintrag gelöscht', { id: old.id, name: old.name, kind: old.kind });
         return { ok: true };

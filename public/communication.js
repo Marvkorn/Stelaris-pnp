@@ -60,6 +60,7 @@ function eventRecordForm(kind,id,owner) {
 async function extendedRecordDetail(id) {
   const x=await api(`/records/${id}`);openRecordId=id;
   openModal(x.name,`<div class="card-meta">${badge(x.visibility)}${x.kind==='report'?`<span class="badge">${x.status==='draft'?'Entwurf':'Veröffentlicht'}</span>`:''}${e(findEmpire(x.empire_id)?.name||'Ohne sichtbare Reichszuordnung')}</div><p class="muted">${e(x.details.type)} ${e(x.details.mapId)}</p><p class="report-text">${e(x.description)}</p>${eventImages(x)}${x.kind==='fleet'?`<div class="table-wrap"><table><thead><tr><th>Schiff</th><th>Typ</th><th>Zustand</th></tr></thead><tbody>${x.details.ships.map(s=>`<tr><td>${e(s.name)}</td><td>${e(s.type)}</td><td>${e(s.status)}</td></tr>`).join('')}</tbody></table></div>`:''}${gm()?`<details><summary>Geheime Spielleiternotizen</summary><p class="description">${e(x.gm_notes)}</p></details><div class="modal-actions">${x.kind!=='report'?button('image-record','Bild hochladen',id):x.status==='published'&&x.popup?button('reannounce','Erneut ankündigen',id):''}${button('delete-record','Löschen',id,'danger')}${button('edit-record','Bearbeiten',id,'primary')}</div>${x.kind==='report'?`<h3>Ankündigungen und Bestätigungen</h3><p class="help">Eine Bestätigung ist kein Nachweis, dass der Text gelesen wurde. Angezeigt werden die aktuell berechtigten Spieler.</p>${(x.announcements??[]).map(a=>`<details><summary>${e(new Date(a.at).toLocaleString('de-AT'))} · ${a.players.filter(p=>p.confirmed_at).length}/${a.players.length} bestätigt</summary>${a.players.map(p=>`<p>${e(p.username)} · ${p.confirmed_at?`bestätigt am ${e(new Date(p.confirmed_at).toLocaleString('de-AT'))}`:'noch nicht bestätigt'}</p>`).join('')||'<p>Keine aktuell berechtigten Spieler.</p>'}</details>`).join('')||'<p class="muted">Noch keine Ankündigung.</p>'}`:''}`:''}`);
+  if(gm() && x.kind==='planet') modal.querySelector('.modal-content').insertAdjacentHTML('beforeend',planetBuildings(x));
   openRecordId=id;
 }
 function actionPage() {
@@ -79,6 +80,9 @@ async function openAction(id) {
   state.notifications=await api('/notifications'); updateNotificationBadge();
 }
 function updateNotificationBadge(){
+  const lawNav=document.querySelector('[data-page="laws"]');
+  const count=gm()?(state.proposals??[]).filter(p=>p.status==='submitted').length:(state.lawNotices??[]).length;
+  if(lawNav)lawNav.innerHTML='<span class="nav-icon">&sect;</span>'+pageNames.laws+(count?' <span class="badge">'+count+' neu</span>':'');
   const nav=document.querySelector('[data-page="actions"]');
   if(nav)nav.innerHTML=`<span class="nav-icon">✉</span>Aktionen${state.notifications?.actions?` <span class="badge">${state.notifications.actions} neu</span>`:''}`;
 }
@@ -121,7 +125,7 @@ async function pollCommunication(){
     if(activeAnnouncement&&!n.events.some(x=>x.id===activeAnnouncement)){eventDialog.close();zoomDialog.close();activeAnnouncement=null;}
     // Revalidate an open detail view even while a dialog is open.
     if(openRecordId&&!gm())try{await api(`/records/${openRecordId}`);}catch{modal.close();zoomDialog.close();openRecordId=null;}
-    if(!modal.open){const fresh=await api('/state');if(!session?.user)return;const changed=fresh.revision!==state.revision||JSON.stringify(fresh.actions)!==JSON.stringify(state.actions);state=fresh;if(changed)render();}
+    if(!modal.open){const fresh=await api('/state');if(!session?.user)return;const changed=fresh.revision!==state.revision||JSON.stringify(fresh.actions)!==JSON.stringify(state.actions)||JSON.stringify(fresh.proposals)!==JSON.stringify(state.proposals)||JSON.stringify(fresh.lawNotices)!==JSON.stringify(state.lawNotices);state=fresh;if(changed)render();}
     await nextEvent();
   }catch{/* Retry on the next poll; never acknowledge automatically. */}
   finally{communicationBusy=false;}
